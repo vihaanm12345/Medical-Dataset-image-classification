@@ -1,0 +1,79 @@
+import kagglehub
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+import matplotlib.pyplot as plt
+import os
+
+# Download dataset
+path = kagglehub.dataset_download("ramachandraudupa/multicancer-dataset")
+print("Path to dataset files:", path)
+
+# Load dataset (assuming it’s organized into subfolders by cancer type)
+img_size = (224, 224)
+batch_size = 32
+
+orig_train_ds = tf.keras.utils.image_dataset_from_directory(
+    os.path.join(path, "Cancer_Dataset", "train"),  # adjust folder if different
+    image_size=img_size,
+    batch_size=batch_size
+)
+
+orig_val_ds = tf.keras.utils.image_dataset_from_directory(
+    os.path.join(path, "Cancer_Dataset", "val"),  # adjust folder if different
+    image_size=img_size,
+    batch_size=batch_size
+)
+
+class_names = orig_train_ds.class_names
+print("Classes:", class_names)
+
+# Normalize images
+normalization_layer = layers.Rescaling(1./255)
+train_ds = orig_train_ds.map(lambda x, y: (normalization_layer(x), y))
+val_ds = orig_val_ds.map(lambda x, y: (normalization_layer(x), y))
+
+# Build CNN model
+model_e = keras.Sequential([
+    layers.Conv2D(32, 3, activation='relu', input_shape=(224, 224, 3)),
+    layers.MaxPooling2D(),
+
+    layers.Conv2D(64, 3, activation='relu'),
+    layers.MaxPooling2D(),
+
+    layers.Conv2D(128, 3, activation='relu'),
+    layers.MaxPooling2D(),
+
+    layers.Conv2D(256, 3, activation='relu'),
+    layers.MaxPooling2D(),
+
+    layers.Flatten(),
+
+    layers.Dense(256, activation='relu'),
+
+    layers.Dense(len(class_names), activation='softmax')
+])
+
+model_e.compile(optimizer="adam",
+              loss="sparse_categorical_crossentropy",
+              metrics=["accuracy"])
+
+# Train
+history = model_e.fit(train_ds, validation_data=val_ds, epochs=10)
+
+# Plot accuracy & loss
+plt.figure(figsize=(10, 4))
+
+plt.subplot(1, 2, 1)
+plt.plot(history.history["accuracy"], label="Train Acc")
+plt.plot(history.history["val_accuracy"], label="Val Acc")
+plt.legend()
+plt.title("Accuracy")
+
+plt.subplot(1, 2, 2)
+plt.plot(history.history["loss"], label="Train Loss")
+plt.plot(history.history["val_loss"], label="Val Loss")
+plt.legend()
+plt.title("Loss")
+
+plt.show()
